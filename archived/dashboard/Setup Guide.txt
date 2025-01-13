@@ -1,0 +1,9 @@
+Please run following commands before running the application
+npm install react-circular-progressbar
+npm install react-charts@beta --save
+npm install recharts
+npm install axios
+npm add @mui/x-data-grid
+npm install --save firebase
+
+For Database connection create your FirebaseDB, name the tables as displayed in video.
