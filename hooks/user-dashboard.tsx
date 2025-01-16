@@ -6,7 +6,7 @@ import { LogOut, Search, User, Bell, ShoppingBag, Settings, CreditCard } from "l
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -238,9 +238,9 @@ export default function UserDashboard() {
                       <Textarea id="notes" name="notes" placeholder="Enter any additional notes" />
                     </div>
                   </div>
-                  <CardFooter className="mt-4 p-0">
+                  <div className="mt-4 flex justify-start">
                     <Button type="submit">Place Order</Button>
-                  </CardFooter>
+                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -268,9 +268,9 @@ export default function UserDashboard() {
                       <Input id="password" name="password" type="password" placeholder="Enter new password" />
                     </div>
                   </div>
-                  <CardFooter className="mt-4 p-0">
+                  <div className="mt-4 flex justify-start">
                     <Button type="submit">Update Profile</Button>
-                  </CardFooter>
+                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -300,9 +300,9 @@ export default function UserDashboard() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter>
+              <div className="mt-4 flex justify-start">
                 <Button>Save Changes</Button>
-              </CardFooter>
+              </div>
             </Card>
           </TabsContent>
         </Tabs>
