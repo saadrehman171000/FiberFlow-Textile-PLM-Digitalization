@@ -56,3 +56,17 @@ CREATE TABLE IF NOT EXISTS representatives (
     createdat TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updatedat TIMESTAMP WITH TIME ZONE
 );
+
+-- Create users table
+CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    created_by TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert an initial admin user
+INSERT INTO users (id, email, name, role) 
+VALUES ('initial_admin', 'your-email@example.com', 'Admin User', 'admin');

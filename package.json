@@ -44,6 +44,7 @@
     "react-hot-toast": "^2.4.1",
     "recharts": "^2.14.1",
     "sqlite3": "^5.1.7",
+    "svix": "^1.45.1",
     "tailwind-merge": "^2.5.3",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.23.8"

@@ -1,20 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProductManagement } from '@/components/ProductManagement'
 import { CustomerManagement } from '@/components/CustomerManagement'
 import { CompanyManagement } from '@/components/CompanyManagement'
-import { Package, Users, Building2, BarChart2 } from 'lucide-react'
+import { Package, Users, Building2, BarChart2, UserPlus } from 'lucide-react'
+import { UserManagement } from '@/components/UserManagement'
+import { useAuth } from '@clerk/nextjs';
 
 export default function AdminDashboard() {
+  const { userId } = useAuth();
+  
+  useEffect(() => {
+    console.log('Admin page - Current user ID:', userId);
+  }, [userId]);
+  
   const [activeTab, setActiveTab] = useState("dashboard")
 
   return (
     <div className="container mx-auto px-4 py-8">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-        <TabsList className="grid grid-cols-4 gap-4 bg-transparent">
+        <TabsList className="grid grid-cols-5 gap-4 bg-transparent">
           <TabsTrigger value="dashboard" className="data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
             <BarChart2 className="mr-2 h-4 w-4" />
             Dashboard
@@ -30,6 +38,10 @@ export default function AdminDashboard() {
           <TabsTrigger value="company" className="data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
             <Building2 className="mr-2 h-4 w-4" />
             Company
+          </TabsTrigger>
+          <TabsTrigger value="users" className="data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
+            <UserPlus className="mr-2 h-4 w-4" />
+            Users
           </TabsTrigger>
         </TabsList>
 
@@ -81,6 +93,18 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <CompanyManagement onUpdate={() => {}} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="users">
+          <Card>
+            <CardHeader>
+              <CardTitle>User Management</CardTitle>
+              <CardDescription>Add and manage system users</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UserManagement onUpdate={() => {}} />
             </CardContent>
           </Card>
         </TabsContent>
