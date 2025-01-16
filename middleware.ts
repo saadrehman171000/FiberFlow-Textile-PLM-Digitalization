@@ -4,37 +4,37 @@ import sql from '@/lib/db';
 const isPublicRoute = createRouteMatcher(["/sign-in(.*)", "/sign-up(.*)", "/"]);
 
 export default clerkMiddleware(async (auth, request) => {
-  if (!request.nextUrl.pathname.startsWith('/clerk_')) {
-    console.log('Request path:', request.nextUrl.pathname);
-  }
-
   if (!isPublicRoute(request)) {
     const session = auth().protect();
     const dbUserId = session.userId.replace('user_', '');
     
-    // Check if user exists in our database
-    const userCheck = await sql`
-      SELECT role FROM user_roles 
-      WHERE user_id = ${dbUserId}
-    `;
+    console.log('Debug Info:', {
+      path: request.nextUrl.pathname,
+      fullUserId: session.userId,
+      dbUserId: dbUserId
+    });
 
-    // If user not in database, redirect to home
-    if (!userCheck.length) {
-      return Response.redirect(new URL('/', request.url));
-    }
+    try {
+      const userCheck = await sql`
+        SELECT * FROM user_roles 
+        WHERE user_id = ${dbUserId}
+      `;
+      
+      console.log('Database check:', userCheck);
 
-    // Admin routes check
-    if (request.nextUrl.pathname.startsWith('/admin')) {
-      if (userCheck[0].role !== 'admin') {
-        return Response.redirect(new URL('/dashboard', request.url));
-      }
-    }
-
-    // Dashboard routes check
-    if (request.nextUrl.pathname.startsWith('/dashboard')) {
-      if (!['admin', 'user'].includes(userCheck[0].role)) {
+      if (!userCheck.length) {
+        console.log('No user found in database');
         return Response.redirect(new URL('/', request.url));
       }
+
+      if (request.nextUrl.pathname.startsWith('/admin')) {
+        if (userCheck[0].role !== 'admin') {
+          return Response.redirect(new URL('/dashboard', request.url));
+        }
+      }
+    } catch (error) {
+      console.error('Database error:', error);
+      return Response.redirect(new URL('/', request.url));
     }
   }
 });
