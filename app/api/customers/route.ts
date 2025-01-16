@@ -1,44 +1,47 @@
 import { NextResponse } from 'next/server'
-import db from '@/lib/db'
+import sql from '@/lib/db'
+
+interface Customer {
+  id: number;
+  name: string;
+  email: string;
+  industry: string;
+  createdat: string;
+}
 
 export async function GET() {
   try {
-    const customers = await db.prepare('SELECT * FROM customers ORDER BY createdat DESC').all()
-    return NextResponse.json(customers)
+    const customers = await sql`
+      SELECT * FROM customers 
+      ORDER BY createdat DESC
+    `;
+
+    return NextResponse.json(customers);
   } catch (error) {
-    console.error('Failed to fetch customers:', error)
-    return NextResponse.json({ error: 'Failed to fetch customers' }, { status: 500 })
+    console.error('Failed to fetch customers:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch customers' },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const data = await request.json()
-    
-    if (!data.name || !data.email) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
+    const data = await request.json();
 
-    const result = await db.prepare(`
-      INSERT INTO customers (name, email)
-      VALUES ($1, $2)
+    const [customer] = await sql`
+      INSERT INTO customers (name, email, industry)
+      VALUES (${data.name}, ${data.email}, ${data.industry || ''})
       RETURNING *
-    `).run(
-      data.name,
-      data.email
-    )
+    `;
 
-    return NextResponse.json(result)
-  } catch (error: any) {
-    console.error('Failed to create customer:', error)
-    
-    if (error.code === '23505' && error.constraint === 'customers_email_key') {
-      return NextResponse.json(
-        { error: 'A customer with this email already exists' }, 
-        { status: 409 }
-      )
-    }
-
-    return NextResponse.json({ error: 'Failed to create customer' }, { status: 500 })
+    return NextResponse.json(customer);
+  } catch (error) {
+    console.error('Failed to create customer:', error);
+    return NextResponse.json(
+      { error: 'Failed to create customer' },
+      { status: 500 }
+    );
   }
-} 
+}

@@ -24,7 +24,8 @@
       ], // Define paths for absolute imports
       "@/lib/*": [
         "lib/*"
-      ]
+      ],
+      "@/*": ["./*"]
     },
     "plugins": [
       {

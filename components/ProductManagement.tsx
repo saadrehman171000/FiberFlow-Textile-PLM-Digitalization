@@ -22,14 +22,15 @@ type Size = 'XXS' | 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL'
 type SizeQuantity = { [key in Size]?: number }
 
 type Product = {
-  id: number
-  name: string
-  style: string
-  fabric: string
-  vendor: string
-  sizeQuantities: SizeQuantity
-  poDate: string
-  image: File | null
+  id: number;
+  name: string;
+  style: string;
+  fabric: string;
+  vendor: string;
+  podate: string;
+  image: string | File;
+  sizeQuantities: Record<string, number>;
+  total_quantity: number;
 }
 
 const convertFileToBase64 = (file: File): Promise<string> => {
@@ -45,19 +46,21 @@ const placeholderImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/200
 
 export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
   const [products, setProducts] = useState<Product[]>([])
-  const [newProduct, setNewProduct] = useState<Omit<Product, 'id'>>({
+  const [newProduct, setNewProduct] = useState<Omit<Product, 'id' | 'total_quantity'>>({
     name: '',
     style: '',
     fabric: '',
     vendor: '',
     sizeQuantities: {},
-    poDate: '',
-    image: null
+    podate: '',
+    image: ''
   })
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [productToDelete, setProductToDelete] = useState<number | null>(null)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [showSizesDialog, setShowSizesDialog] = useState(false);
   const { toast } = useToast()
 
   const sizes: Size[] = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL']
@@ -109,7 +112,7 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
       }
 
       await fetchProducts();
-      setNewProduct({ name: '', style: '', fabric: '', vendor: '', sizeQuantities: {}, poDate: '', image: null });
+      setNewProduct({ name: '', style: '', fabric: '', vendor: '', sizeQuantities: {}, podate: '', image: '' });
       setShowSuccessDialog(true);
       onUpdate();
     } catch (error: any) {
@@ -132,7 +135,13 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
     try {
       let imageData: string | null = null;
       if (editingProduct.image) {
-        imageData = await convertFileToBase64(editingProduct.image);
+        // Check if image is a File object
+        if (editingProduct.image instanceof File) {
+          imageData = await convertFileToBase64(editingProduct.image);
+        } else {
+          // If it's already a string (URL/base64), use it directly
+          imageData = editingProduct.image as string;
+        }
       }
 
       const response = await fetch(`/api/products/${editingProduct.id}`, {
@@ -196,9 +205,9 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
   const handleImageUpload = (e: ChangeEvent<HTMLInputElement>, isEditing: boolean) => {
     const file = e.target.files?.[0] || null
     if (isEditing && editingProduct) {
-      setEditingProduct({ ...editingProduct, image: file })
+      setEditingProduct({ ...editingProduct, image: file || '' })
     } else {
-      setNewProduct({ ...newProduct, image: file })
+      setNewProduct({ ...newProduct, image: file || '' })
     }
   }
 
@@ -226,7 +235,15 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
     return Object.values(sizeQuantities || {}).reduce((sum, qty) => sum + (qty || 0), 0);
   };
 
-  const renderProductForm = (product: Omit<Product, 'id'>, isEditing: boolean) => (
+  const handleViewSizes = (product: Product) => {
+    setSelectedProduct(product);
+    setShowSizesDialog(true);
+  };
+
+  const renderProductForm = (
+    product: Omit<Product, 'id' | 'total_quantity'>, 
+    isEditing: boolean
+  ) => (
     <ScrollArea className="h-[60vh] pr-4">
       <div className="grid gap-4 py-4">
         <div className="grid grid-cols-4 items-center gap-4">
@@ -312,8 +329,8 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
           <Input
             id={isEditing ? "edit-poDate" : "poDate"}
             type="date"
-            value={product.poDate}
-            onChange={(e) => isEditing ? setEditingProduct({ ...editingProduct!, poDate: e.target.value }) : setNewProduct({ ...newProduct, poDate: e.target.value })}
+            value={product.podate}
+            onChange={(e) => isEditing ? setEditingProduct({ ...editingProduct!, podate: e.target.value }) : setNewProduct({ ...newProduct, podate: e.target.value })}
             className="col-span-3"
           />
         </div>
@@ -374,20 +391,9 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
               <TableRow key={product.id}>
                 <TableCell>
                   {product.image ? (
-                    <Image
-                      src={typeof product.image === 'string' ? product.image : URL.createObjectURL(product.image)}
-                      alt={product.name}
-                      width={64}
-                      height={64}
-                      className="object-cover rounded-md"
-                    />
+                    <Image src={product.image as string} alt={product.name} width={40} height={40} />
                   ) : (
-                    <Image 
-                      src={placeholderImage} 
-                      width={36} 
-                      height={36} 
-                      alt="User 1" 
-                    />
+                    <div className="bg-gray-100 w-10 h-10 flex items-center justify-center">UI</div>
                   )}
                 </TableCell>
                 <TableCell>{product.name}</TableCell>
@@ -395,37 +401,13 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
                 <TableCell>{product.fabric}</TableCell>
                 <TableCell>{product.vendor}</TableCell>
                 <TableCell>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Info className="h-4 w-4 mr-2" /> View Sizes
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-80">
-                      <div className="grid gap-4">
-                        <div className="space-y-2">
-                          <h4 className="font-medium leading-none">Size Quantities</h4>
-                          <p className="text-sm text-muted-foreground">
-                            Breakdown of quantities for each size.
-                          </p>
-                        </div>
-                        <div className="grid gap-2">
-                          {Object.entries(product.sizeQuantities || {}).map(([size, quantity]) => (
-                            <div key={size} className="flex items-center justify-between">
-                              <span>{size}:</span>
-                              <Badge variant="secondary">{quantity}</Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  <Button variant="outline" size="sm" onClick={() => handleViewSizes(product)}>
+                    View Sizes
+                  </Button>
                 </TableCell>
-                <TableCell>
-                  <Badge>{calculateTotalQuantity(product.sizeQuantities)}</Badge>
-                </TableCell>
-                <TableCell>{product.poDate}</TableCell>
-                <TableCell>
+                <TableCell>{product.total_quantity}</TableCell>
+                <TableCell>{product.podate || 'N/A'}</TableCell>
+                <TableCell className="text-right">
                   <div className="flex space-x-2">
                     <Button variant="outline" className="mr-2" onClick={() => handleEditProduct(product)}>Edit</Button>
                     <AlertDialog>
@@ -509,6 +491,24 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {selectedProduct && (
+        <Dialog open={showSizesDialog} onOpenChange={setShowSizesDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Size Quantities for {selectedProduct.name}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4">
+              {Object.entries(selectedProduct.sizeQuantities).map(([size, quantity]) => (
+                <div key={size} className="flex justify-between items-center">
+                  <span className="font-medium">{size}:</span>
+                  <span>{quantity}</span>
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   )
 }

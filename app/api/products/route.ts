@@ -1,119 +1,90 @@
-import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { NextResponse } from 'next/server';
+import sql from '@/lib/db';
 
-export async function GET(request: NextRequest) {
-    try {
-        const url = new URL(request.url);
-        const id = url.searchParams.get('id');
-
-        if (id) {
-            // Fetch single product
-            const product = await db.prepare(`
-                SELECT 
-                    p.*,
-                    COALESCE(
-                        jsonb_agg(
-                            CASE WHEN sq.size IS NOT NULL 
-                            THEN jsonb_build_object(
-                                'size', sq.size,
-                                'quantity', sq.quantity
-                            )
-                            END
-                        ),
-                        '[]'::jsonb
-                    ) as size_quantities
-                FROM products p
-                LEFT JOIN size_quantities sq ON p.id = sq.productid
-                WHERE p.id = $1
-                GROUP BY p.id
-            `).all(id);
-
-            if (!product || product.length === 0) {
-                return NextResponse.json({ error: 'Product not found' }, { status: 404 });
-            }
-
-            const transformedProduct = {
-                ...product[0],
-                sizeQuantities: product[0].size_quantities.reduce((acc: any, curr: any) => {
-                    if (curr?.size) {
-                        acc[curr.size] = curr.quantity;
-                    }
-                    return acc;
-                }, {})
-            };
-
-            return NextResponse.json(transformedProduct);
-        }
-
-        // Fetch all products
-        const products = await db.prepare(`
-            SELECT 
-                p.*,
-                COALESCE(
-                    jsonb_agg(
-                        CASE WHEN sq.size IS NOT NULL 
-                        THEN jsonb_build_object(
-                            'size', sq.size,
-                            'quantity', sq.quantity
-                        )
-                        END
-                    ),
-                    '[]'::jsonb
-                ) as size_quantities
-            FROM products p
-            LEFT JOIN size_quantities sq ON p.id = sq.productid
-            GROUP BY p.id
-            ORDER BY p.id DESC
-        `).all();
-
-        const transformedProducts = products.map(product => ({
-            ...product,
-            sizeQuantities: product.size_quantities.reduce((acc: any, curr: any) => {
-                if (curr?.size) {
-                    acc[curr.size] = curr.quantity;
-                }
-                return acc;
-            }, {})
-        }));
-
-        return NextResponse.json(transformedProducts);
-    } catch (error) {
-        console.error('Failed to fetch products:', error);
-        return NextResponse.json({ error: 'Failed to fetch products' }, { status: 500 });
-    }
+interface Product {
+  id: number;
+  podate: string;
+  sizeQuantities: Record<string, number>;
+  [key: string]: any;
 }
 
-export async function POST(request: NextRequest) {
-    try {
-        const body = await request.json();
-        const { name, style, fabric, vendor, poDate, image, sizeQuantities } = body;
+export async function GET() {
+  try {
+    const products = await sql`
+      SELECT 
+        p.*,
+        to_char(p.podate, 'YYYY-MM-DD') as podate,
+        COALESCE(SUM(sq.quantity), 0) as total_quantity
+      FROM products p
+      LEFT JOIN size_quantities sq ON p.id = sq.productid
+      GROUP BY p.id, p.name, p.style, p.fabric, p.vendor, p.podate, p.image, p.createdat
+      ORDER BY p.createdat DESC
+    `;
 
-        await db.prepare('BEGIN').run();
+    const formattedProducts = await Promise.all(
+      products.map(async (product) => {
+        const sizes = await sql`
+          SELECT size, quantity 
+          FROM size_quantities 
+          WHERE productid = ${product.id}
+        `;
 
-        const result = await db.prepare(`
-            INSERT INTO products (name, style, fabric, vendor, podate, image)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id
-        `).run(name, style, fabric, vendor, poDate || new Date().toISOString().split('T')[0], image);
+        return {
+          ...product,
+          podate: new Date(product.podate).toISOString().split('T')[0],
+          sizeQuantities: sizes.reduce((acc, { size, quantity }) => ({
+            ...acc,
+            [size]: quantity
+          }), {})
+        };
+      })
+    );
 
-        const productId = result.lastInsertRowId;
+    return NextResponse.json(formattedProducts);
+  } catch (error) {
+    console.error('Failed to fetch products:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch products' }, 
+      { status: 500 }
+    );
+  }
+}
 
-        if (sizeQuantities && Object.keys(sizeQuantities).length > 0) {
-            for (const [size, quantity] of Object.entries(sizeQuantities)) {
-                if ((quantity as number) > 0) {
-                    await db.prepare(`
-                        INSERT INTO size_quantities (productid, size, quantity)
-                        VALUES ($1, $2, $3)
-                    `).run(productId, size, quantity);
-                }
-            }
+export async function POST(request: Request) {
+  try {
+    const data = await request.json();
+    
+    const [product] = await sql`
+      INSERT INTO products (name, style, fabric, vendor, podate, image)
+      VALUES (
+        ${data.name}, 
+        ${data.style || ''}, 
+        ${data.fabric || ''}, 
+        ${data.vendor || ''}, 
+        ${data.poDate}::date, 
+        ${data.image || ''}
+      )
+      RETURNING *, to_char(podate, 'YYYY-MM-DD') as podate
+    `;
+
+    if (data.sizeQuantities) {
+      for (const [size, quantity] of Object.entries(data.sizeQuantities)) {
+        const quantityNum = Number(quantity);
+        if (quantityNum > 0) {
+          await sql`
+            INSERT INTO size_quantities (productid, size, quantity)
+            VALUES (${product.id}, ${size}, ${quantityNum})
+          `;
         }
-
-        await db.prepare('COMMIT').run();
-        return NextResponse.json({ id: productId });
-    } catch (error) {
-        await db.prepare('ROLLBACK').run();
-        console.error('Failed to create product:', error);
-        return NextResponse.json({ error: 'Failed to create product' }, { status: 500 });
+      }
     }
+
+    return NextResponse.json({ success: true, id: product.id });
+  } catch (error) {
+    console.error('Failed to create product:', error);
+    return NextResponse.json(
+      { error: 'Failed to create product', details: error instanceof Error ? error.message : 'Unknown error' }, 
+      { status: 500 }
+    );
+  }
 }

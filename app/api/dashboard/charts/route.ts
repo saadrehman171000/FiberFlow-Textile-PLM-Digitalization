@@ -1,84 +1,81 @@
 import { NextResponse } from 'next/server'
-import db from '@/lib/db'
+import sql from '@/lib/db'
 
 export async function GET() {
   try {
-    // Products by Category with coalesce for null fabrics
-    const productsByCategory = await db.prepare(`
-      SELECT COALESCE(fabric, 'Uncategorized') as category, COUNT(*) as count 
-      FROM products 
-      GROUP BY fabric
-      ORDER BY count DESC
-    `).all();
-
-    // Monthly Customer Growth with fixed GROUP BY
-    const customerGrowth = await db.prepare(`
+    // Monthly registrations (Companies and Customers)
+    const monthlyRegistrations = await sql`
       SELECT 
-        month,
-        COUNT(*) as new_customers
-      FROM (
-        SELECT date_trunc('month', createdat) as month
-        FROM customers
-        WHERE createdat >= date_trunc('month', CURRENT_TIMESTAMP - INTERVAL '6 months')
-      ) monthly
-      GROUP BY month
-      ORDER BY month DESC
-    `).all();
-
-    // Company Distribution with total count
-    const companyDistribution = await db.prepare(`
-      SELECT 
-        COALESCE(status, 'unknown') as status,
-        COUNT(*) as count
+        TO_CHAR(createdat, 'YYYY-MM') as month,
+        COUNT(*) as companies,
+        COUNT(DISTINCT email) as customers
       FROM representatives
-      GROUP BY status
-      ORDER BY count DESC
-    `).all();
+      WHERE createdat >= NOW() - INTERVAL '6 months'
+      GROUP BY TO_CHAR(createdat, 'YYYY-MM')
+      ORDER BY month ASC
+    `;
 
-    // Calculate percentages in JavaScript
-    const totalCompanies = companyDistribution.reduce((sum, item) => sum + item.count, 0);
-    const distributionWithPercentages = companyDistribution.map(item => ({
-      ...item,
-      percentage: totalCompanies ? Number((item.count * 100 / totalCompanies).toFixed(1)) : 0
-    }));
-
-    // Product Creation Timeline with fixed GROUP BY
-    const productTimeline = await db.prepare(`
+    // Company Status distribution
+    const companyStatus = await sql`
+      WITH all_statuses AS (
+        SELECT unnest(ARRAY['active', 'inactive', 'none']) as status
+      )
       SELECT 
-        month,
-        COUNT(*) as new_products,
-        SUM(COUNT(*)) OVER (ORDER BY month) as total_products
+        a.status,
+        COALESCE(COUNT(r.id), 0) as count
+      FROM all_statuses a
+      LEFT JOIN representatives r ON r.status = a.status
+      GROUP BY a.status
+      ORDER BY a.status
+    `;
+
+    // Product sizes with default values if empty
+    const productSizes = await sql`
+      SELECT 
+        sq.size,
+        COALESCE(SUM(sq.quantity), 0) as total_quantity
       FROM (
-        SELECT date_trunc('month', createdat) as month
-        FROM products
-        WHERE createdat >= date_trunc('month', CURRENT_TIMESTAMP - INTERVAL '6 months')
-      ) monthly
-      GROUP BY month
-      ORDER BY month DESC
-    `).all();
+        SELECT DISTINCT size FROM size_quantities
+        UNION
+        SELECT unnest(ARRAY['S', 'M', 'L', 'XL', 'XXL'])
+      ) sizes(size)
+      LEFT JOIN size_quantities sq USING (size)
+      GROUP BY sq.size
+      ORDER BY sq.size
+    `;
 
-    // Format dates after aggregation
-    const formattedCustomerGrowth = customerGrowth.map(row => ({
-      ...row,
-      month: new Date(row.month).toISOString().substring(0, 7)
-    }));
+    // Customer industries with default value if empty
+    const customerIndustries = await sql`
+      SELECT 
+        COALESCE(industry, 'Not Specified') as industry,
+        COUNT(*) as count
+      FROM customers
+      GROUP BY industry
+      ORDER BY count DESC
+      LIMIT 5
+    `;
 
-    const formattedProductTimeline = productTimeline.map(row => ({
-      ...row,
-      month: new Date(row.month).toISOString().substring(0, 7)
-    }));
+    // Log the data for debugging
+    console.log('API Response:', {
+      monthlyRegistrations,
+      companyStatus,
+      productSizes,
+      customerIndustries
+    });
 
     return NextResponse.json({
-      productsByCategory,
-      customerGrowth: formattedCustomerGrowth.reverse(),
-      companyDistribution: distributionWithPercentages,
-      productTimeline: formattedProductTimeline.reverse()
-    })
+      monthlyRegistrations,
+      companyStatus,
+      productSizes,
+      customerIndustries
+    });
   } catch (error) {
-    console.error('Failed to fetch chart data:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch chart data' }, 
-      { status: 500 }
-    )
+    console.error('Failed to fetch chart data:', error);
+    return NextResponse.json({
+      monthlyRegistrations: [],
+      companyStatus: [],
+      productSizes: [],
+      customerIndustries: []
+    });
   }
 } 

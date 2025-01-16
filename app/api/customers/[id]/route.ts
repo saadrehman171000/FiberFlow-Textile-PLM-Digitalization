@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server'
-import db from '@/lib/db'
+import sql from '@/lib/db'
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const customer = await db.prepare('SELECT * FROM customers WHERE id = $1').get(params.id)
+    const [customer] = await sql`
+      SELECT id, name, email, industry, createdat 
+      FROM customers 
+      WHERE id = ${params.id}
+    `;
     
     if (!customer) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
@@ -26,22 +30,21 @@ export async function PUT(
   try {
     const data = await request.json()
 
-    if (!data.name || !data.email) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-    }
-
-    const result = await db.prepare(`
+    const [customer] = await sql`
       UPDATE customers 
-      SET name = $1, email = $2
-      WHERE id = $3
+      SET 
+        name = ${data.name},
+        email = ${data.email},
+        industry = ${data.industry || ''}
+      WHERE id = ${params.id}
       RETURNING *
-    `).run(data.name, data.email, params.id)
+    `;
 
-    if (!result.changes) {
+    if (!customer) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
     }
 
-    return NextResponse.json(result)
+    return NextResponse.json(customer)
   } catch (error) {
     console.error('Failed to update customer:', error)
     return NextResponse.json({ error: 'Failed to update customer' }, { status: 500 })
@@ -53,13 +56,17 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const result = await db.prepare('DELETE FROM customers WHERE id = $1 RETURNING *').run(params.id)
+    const [customer] = await sql`
+      DELETE FROM customers 
+      WHERE id = ${params.id}
+      RETURNING id
+    `;
 
-    if (!result.changes) {
+    if (!customer) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ message: 'Customer deleted successfully' })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Failed to delete customer:', error)
     return NextResponse.json({ error: 'Failed to delete customer' }, { status: 500 })

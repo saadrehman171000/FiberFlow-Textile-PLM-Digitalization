@@ -1,97 +1,115 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import db from '@/lib/db'
+import sql from '@/lib/db'
 import { z } from 'zod'
-import { randomUUID } from 'crypto';
 
-const OrderSchema = z.object({
-  product: z.string(),
-  quantity: z.number(),
-  price: z.number(),
-  notes: z.string()
-})
+// Validation schemas
+const OrderItemSchema = z.object({
+  product_id: z.string().uuid(),
+  size: z.string(),
+  quantity: z.number().positive(),
+  price: z.number().positive()
+});
 
-async function checkAuth() {
-  const { userId } = auth();
-  return userId;
-}
+const CreateOrderSchema = z.object({
+  items: z.array(OrderItemSchema)
+});
+
+const UpdateOrderSchema = z.object({
+  status: z.enum(['pending', 'processing', 'shipped', 'delivered', 'cancelled']),
+  total_items: z.number().optional(),
+  total_amount: z.number().optional()
+});
 
 export async function POST(req: NextRequest) {
-  const userId = await checkAuth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
-    const body = await req.json()
-    const validatedData = OrderSchema.parse(body)
+    const { userId } = auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const data = await req.json();
     
-    const stmt = db.prepare(`
-      INSERT INTO orders (id, user_id, product, quantity, status, total, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id
-    `)
-    
-    const result = await stmt.run(
-      randomUUID(),
-      userId,
-      validatedData.product,
-      validatedData.quantity,
-      "Pending",
-      validatedData.price * validatedData.quantity,
-      validatedData.notes
-    )
-    
-    return NextResponse.json({ id: result.lastInsertRowId }, { status: 201 })
+    const [order] = await sql`
+      INSERT INTO orders (
+        user_id,
+        total,
+        status,
+        createdat
+      ) VALUES (
+        ${userId},
+        ${data.total},
+        ${data.status},
+        NOW()
+      )
+      RETURNING *
+    `;
+
+    return NextResponse.json(order);
   } catch (error) {
-    console.error('Failed to create order:', error)
+    console.error('Failed to create order:', error);
     return NextResponse.json(
       { error: 'Failed to create order' },
       { status: 500 }
-    )
+    );
   }
 }
 
 export async function GET(req: NextRequest) {
-  const userId = await checkAuth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
-
-    if (id) {
-      const stmt = db.prepare('SELECT * FROM orders WHERE id = $1 AND user_id = $2')
-      const order = await stmt.get(id, userId)
-
-      if (!order) {
-        return NextResponse.json({ error: "Order not found" }, { status: 404 });
-      }
-
-      return NextResponse.json(order);
-    } else {
-      const stmt = db.prepare('SELECT * FROM orders WHERE user_id = $1 ORDER BY date DESC')
-      const orders = await stmt.all(userId)
-      return NextResponse.json(orders || []);
+    const { userId } = auth();
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { searchParams } = new URL(req.url);
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const offset = parseInt(searchParams.get('offset') || '0');
+    const status = searchParams.get('status');
+
+    // Build the query
+    const orders = await sql`
+      SELECT 
+        o.*,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', oi.id,
+              'product_id', oi.product_id,
+              'size', oi.size,
+              'quantity', oi.quantity,
+              'price', oi.price
+            )
+          ) FILTER (WHERE oi.id IS NOT NULL),
+          '[]'
+        ) as items
+      FROM orders o
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      WHERE o.user_id = ${userId}
+      ${status ? sql`AND o.status = ${status}` : sql``}
+      GROUP BY o.id
+      ORDER BY o.createdat DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `;
+
+    return NextResponse.json(orders);
   } catch (error) {
-    console.error('Failed to fetch orders:', error)
+    console.error('Failed to fetch orders:', error);
     return NextResponse.json(
       { error: 'Failed to fetch orders' },
       { status: 500 }
-    )
+    );
   }
 }
 
 export async function PUT(req: NextRequest) {
-  const userId = await checkAuth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const { userId } = auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) {
@@ -102,46 +120,49 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const stmt = db.prepare(`
-      UPDATE orders 
-      SET product = $1, quantity = $2, status = $3, total = $4
-      WHERE id = $5 AND user_id = $6
-      RETURNING id
-    `)
-    
-    const result = await stmt.run(
-      body.product,
-      body.quantity,
-      body.status,
-      body.total,
-      id,
-      userId
-    )
+    const validatedData = UpdateOrderSchema.parse(body);
 
-    if (!result.lastInsertRowId) {
+    const [updatedOrder] = await sql`
+      UPDATE orders 
+      SET 
+        status = ${validatedData.status},
+        total_items = COALESCE(${validatedData.total_items}, total_items),
+        total_amount = COALESCE(${validatedData.total_amount}, total_amount),
+        updatedat = CURRENT_TIMESTAMP
+      WHERE id = ${id} AND user_id = ${userId}
+      RETURNING *
+    `;
+
+    if (!updatedOrder) {
       return NextResponse.json(
         { error: "Order not found or unauthorized" },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({ message: "Order updated successfully" });
+    return NextResponse.json(updatedOrder);
   } catch (error) {
-    console.error('Failed to update order:', error)
+    console.error('Failed to update order:', error);
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid update data', details: error.errors },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to update order' },
       { status: 500 }
-    )
+    );
   }
 }
 
 export async function DELETE(req: NextRequest) {
-  const userId = await checkAuth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const { userId } = auth();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
     if (!id) {
@@ -151,10 +172,13 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const stmt = db.prepare('DELETE FROM orders WHERE id = $1 AND user_id = $2 RETURNING id')
-    const result = await stmt.run(id, userId)
+    const [deletedOrder] = await sql`
+      DELETE FROM orders 
+      WHERE id = ${id} AND user_id = ${userId}
+      RETURNING id
+    `;
 
-    if (!result.lastInsertRowId) {
+    if (!deletedOrder) {
       return NextResponse.json(
         { error: "Order not found or unauthorized" },
         { status: 404 }
@@ -163,10 +187,10 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ message: "Order deleted successfully" });
   } catch (error) {
-    console.error('Failed to delete order:', error)
+    console.error('Failed to delete order:', error);
     return NextResponse.json(
       { error: 'Failed to delete order' },
       { status: 500 }
-    )
+    );
   }
 }
