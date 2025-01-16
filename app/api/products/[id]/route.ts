@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
+import { auth } from '@clerk/nextjs/server';
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const { userId } = auth();
+  const dbUserId = userId?.replace('user_', '');
+
   try {
     const [product] = await sql`
       SELECT p.*, COALESCE(SUM(sq.quantity), 0) as total_quantity
       FROM products p
       LEFT JOIN size_quantities sq ON p.id = sq.productid
-      WHERE p.id = ${params.id}
+      WHERE p.id = ${params.id} AND p.created_by = ${dbUserId}
       GROUP BY p.id, p.name, p.style, p.fabric, p.vendor, p.podate, p.image, p.createdat
     `;
 
@@ -42,22 +46,30 @@ export async function GET(
 }
 
 export async function DELETE(
-  request: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
   try {
+    const { userId } = auth();
+    const dbUserId = userId?.replace('user_', '');
+
+    // First delete related size quantities
     await sql`
-      DELETE FROM products 
-      WHERE id = ${params.id}
+      DELETE FROM size_quantities 
+      WHERE productid = ${params.id}
     `;
 
-    return NextResponse.json({ success: true });
+    // Then delete the product
+    await sql`
+      DELETE FROM products 
+      WHERE id = ${params.id} 
+      AND created_by = ${dbUserId}
+    `;
+
+    return Response.json({ message: 'Product deleted successfully' });
   } catch (error) {
     console.error('Failed to delete product:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete product' },
-      { status: 500 }
-    );
+    return Response.json({ error: 'Failed to delete product' }, { status: 500 });
   }
 }
 
@@ -65,6 +77,9 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const { userId } = auth();
+  const dbUserId = userId?.replace('user_', '');
+
   try {
     const data = await request.json();
 
@@ -76,7 +91,7 @@ export async function PUT(
           vendor = ${data.vendor || ''},
           podate = ${data.poDate || new Date().toISOString().split('T')[0]},
           image = ${data.image || ''}
-      WHERE id = ${params.id}
+      WHERE id = ${params.id} AND created_by = ${dbUserId}
     `;
 
     // Update size quantities

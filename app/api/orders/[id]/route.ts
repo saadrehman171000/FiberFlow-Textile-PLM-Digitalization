@@ -12,6 +12,7 @@ export async function PATCH(
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const dbUserId = userId.replace('user_', '');
 
     const data = await request.json();
     const { status } = data as { status: OrderStatus };
@@ -21,7 +22,7 @@ export async function PATCH(
       SET 
         status = ${status},
         updatedat = CURRENT_TIMESTAMP
-      WHERE id = ${params.id} AND user_id = ${userId}
+      WHERE id = ${params.id} AND created_by = ${dbUserId}
       RETURNING *
     `;
 

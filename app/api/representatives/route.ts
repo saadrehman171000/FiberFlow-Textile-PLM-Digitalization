@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import sql from '@/lib/db'
 
 export async function GET() {
+  const { userId } = auth();
+  const dbUserId = userId?.replace('user_', '');
+
   try {
     const representatives = await sql`
       SELECT 
@@ -17,6 +21,7 @@ export async function GET() {
         status,
         createdat
       FROM representatives 
+      WHERE created_by = ${dbUserId}
       ORDER BY createdat DESC
     `;
 
@@ -31,6 +36,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const { userId } = auth();
+  const dbUserId = userId?.replace('user_', '');
+
   try {
     const data = await request.json();
 
@@ -38,7 +46,7 @@ export async function POST(request: Request) {
       INSERT INTO representatives (
         companyname, name, designation, email, 
         phonenumber, whatsappnumber, address, 
-        cnicnumber, status
+        cnicnumber, status, created_by
       )
       VALUES (
         ${data.companyname || null}, 
@@ -49,7 +57,8 @@ export async function POST(request: Request) {
         ${data.whatsappnumber || null}, 
         ${data.address || null}, 
         ${data.cnicnumber || null}, 
-        ${data.status || 'Not Set'}
+        ${data.status || 'Not Set'},
+        ${dbUserId}
       )
       RETURNING *
     `;

@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const dbUserId = userId.replace('user_', '');
 
     const data = await req.json();
     
@@ -35,12 +36,14 @@ export async function POST(req: NextRequest) {
         user_id,
         total,
         status,
-        createdat
+        createdat,
+        created_by
       ) VALUES (
         ${userId},
         ${data.total},
         ${data.status},
-        NOW()
+        NOW(),
+        ${dbUserId}
       )
       RETURNING *
     `;
@@ -61,13 +64,13 @@ export async function GET(req: NextRequest) {
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const dbUserId = userId.replace('user_', '');
 
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '10');
     const offset = parseInt(searchParams.get('offset') || '0');
     const status = searchParams.get('status');
 
-    // Build the query
     const orders = await sql`
       SELECT 
         o.*,
@@ -85,7 +88,7 @@ export async function GET(req: NextRequest) {
         ) as items
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
-      WHERE o.user_id = ${userId}
+      WHERE o.created_by = ${dbUserId}
       ${status ? sql`AND o.status = ${status}` : sql``}
       GROUP BY o.id
       ORDER BY o.createdat DESC

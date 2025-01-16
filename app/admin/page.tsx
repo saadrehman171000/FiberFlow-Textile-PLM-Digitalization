@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProductManagement } from '@/components/ProductManagement'
-import { CustomerManagement } from '@/components/CustomerManagement'
 import { CompanyManagement } from '@/components/CompanyManagement'
 import { Package, Users, Building2, BarChart2, UserPlus } from 'lucide-react'
 import { UserManagement } from '@/components/UserManagement'
@@ -22,24 +21,20 @@ export default function AdminDashboard() {
   return (
     <div className="container mx-auto px-4 py-8">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-        <TabsList className="grid grid-cols-5 gap-4 bg-transparent">
-          <TabsTrigger value="dashboard" className="data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
+        <TabsList className="grid grid-cols-4 w-full gap-4 bg-transparent mb-4">
+          <TabsTrigger value="dashboard" className="flex-1 data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
             <BarChart2 className="mr-2 h-4 w-4" />
             Dashboard
           </TabsTrigger>
-          <TabsTrigger value="products" className="data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
+          <TabsTrigger value="products" className="flex-1 data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
             <Package className="mr-2 h-4 w-4" />
             Products
           </TabsTrigger>
-          <TabsTrigger value="customers" className="data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
-            <Users className="mr-2 h-4 w-4" />
-            Customers
-          </TabsTrigger>
-          <TabsTrigger value="company" className="data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
+          <TabsTrigger value="company" className="flex-1 data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
             <Building2 className="mr-2 h-4 w-4" />
             Company
           </TabsTrigger>
-          <TabsTrigger value="users" className="data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
+          <TabsTrigger value="users" className="flex-1 data-[state=active]:bg-white data-[state=active]:shadow-md dark:data-[state=active]:bg-gray-800">
             <UserPlus className="mr-2 h-4 w-4" />
             Users
           </TabsTrigger>
@@ -73,17 +68,7 @@ export default function AdminDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="customers">
-          <Card>
-            <CardHeader>
-              <CardTitle>Customer Management</CardTitle>
-              <CardDescription>Manage your customers</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <CustomerManagement onUpdate={() => {}} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+       
 
         <TabsContent value="company">
           <Card>

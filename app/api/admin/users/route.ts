@@ -3,8 +3,6 @@ import sql from '@/lib/db';
 
 export async function GET() {
   const { userId } = auth();
-  
-  // Remove 'user_' prefix for database comparison
   const dbUserId = userId?.replace('user_', '');
   
   // Verify admin
@@ -17,11 +15,18 @@ export async function GET() {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  // Get all users
   const users = await sql`
-    SELECT user_id, email, name, role, created_at 
+    SELECT 
+      user_id, 
+      email, 
+      name, 
+      COALESCE(industry, '') as industry,
+      role, 
+      created_at
     FROM user_roles 
     WHERE role = 'user'
+    AND created_by = ${dbUserId}
+    ORDER BY created_at DESC
   `;
   
   return Response.json(users);
@@ -29,8 +34,6 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const { userId } = auth();
-  
-  // Remove 'user_' prefix for database comparison
   const dbUserId = userId?.replace('user_', '');
   
   // Verify admin
@@ -43,13 +46,12 @@ export async function POST(request: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const { email, name } = await request.json();
+  const { email, name, industry } = await request.json();
 
   try {
-    // Create new user
     await sql`
-      INSERT INTO user_roles (user_id, email, name, role, created_by)
-      VALUES (${email}, ${email}, ${name}, 'user', ${dbUserId})
+      INSERT INTO user_roles (user_id, email, name, industry, role, created_by)
+      VALUES (${email}, ${email}, ${name}, ${industry}, 'user', ${dbUserId})
     `;
 
     return Response.json({ success: true });

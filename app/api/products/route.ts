@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
+import { auth } from '@clerk/nextjs/server';
 
 interface Product {
   id: number;
@@ -9,6 +10,9 @@ interface Product {
 }
 
 export async function GET() {
+  const { userId } = auth();
+  const dbUserId = userId?.replace('user_', '');
+
   try {
     const products = await sql`
       SELECT 
@@ -17,6 +21,7 @@ export async function GET() {
         COALESCE(SUM(sq.quantity), 0) as total_quantity
       FROM products p
       LEFT JOIN size_quantities sq ON p.id = sq.productid
+      WHERE p.created_by = ${dbUserId}
       GROUP BY p.id, p.name, p.style, p.fabric, p.vendor, p.podate, p.image, p.createdat
       ORDER BY p.createdat DESC
     `;
@@ -51,18 +56,22 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const { userId } = auth();
+  const dbUserId = userId?.replace('user_', '');
+
   try {
     const data = await request.json();
     
     const [product] = await sql`
-      INSERT INTO products (name, style, fabric, vendor, podate, image)
+      INSERT INTO products (name, style, fabric, vendor, podate, image, created_by)
       VALUES (
         ${data.name}, 
         ${data.style || ''}, 
         ${data.fabric || ''}, 
         ${data.vendor || ''}, 
         ${data.poDate}::date, 
-        ${data.image || ''}
+        ${data.image || ''},
+        ${dbUserId}
       )
       RETURNING *, to_char(podate, 'YYYY-MM-DD') as podate
     `;

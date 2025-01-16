@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import sql from '@/lib/db'
 
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const { userId } = auth();
+  const dbUserId = userId?.replace('user_', '');
+
   try {
     const [representative] = await sql`
       SELECT * FROM representatives 
-      WHERE id = ${params.id}
+      WHERE id = ${params.id} AND created_by = ${dbUserId}
     `;
 
     if (!representative) {
@@ -32,6 +36,9 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const { userId } = auth();
+  const dbUserId = userId?.replace('user_', '');
+
   try {
     const data = await request.json();
 
@@ -46,7 +53,7 @@ export async function PUT(
           address = ${data.address || ''},
           cnicnumber = ${data.cnicnumber || ''},
           status = ${data.status || 'none'}
-      WHERE id = ${params.id}
+      WHERE id = ${params.id} AND created_by = ${dbUserId}
       RETURNING *
     `;
 
@@ -71,10 +78,13 @@ export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const { userId } = auth();
+  const dbUserId = userId?.replace('user_', '');
+
   try {
     const [representative] = await sql`
       DELETE FROM representatives 
-      WHERE id = ${params.id}
+      WHERE id = ${params.id} AND created_by = ${dbUserId}
       RETURNING id
     `;
 
