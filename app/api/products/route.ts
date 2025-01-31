@@ -62,6 +62,8 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
     
+    const podate = data.poDate ? new Date(data.poDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+
     const [product] = await sql`
       INSERT INTO products (name, style, fabric, vendor, podate, image, created_by)
       VALUES (
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
         ${data.style || ''}, 
         ${data.fabric || ''}, 
         ${data.vendor || ''}, 
-        ${data.poDate}::date, 
+        ${podate}::date, 
         ${data.image || ''},
         ${dbUserId}
       )

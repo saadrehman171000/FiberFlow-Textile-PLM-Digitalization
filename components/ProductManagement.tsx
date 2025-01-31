@@ -52,7 +52,7 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
     fabric: '',
     vendor: '',
     sizeQuantities: {},
-    podate: '',
+    podate: '',  
     image: ''
   })
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -86,7 +86,6 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
 
   const handleCreateProduct = async () => {
     try {
-      // Log the data being sent
       console.log('Submitting product data:', {
         ...newProduct,
         sizeQuantities: Object.fromEntries(

@@ -83,6 +83,13 @@ export async function PUT(
   try {
     const data = await request.json();
 
+    if (data.poDate) {
+      const poDate = new Date(data.poDate);
+      if (isNaN(poDate.getTime())) {
+        throw new Error('Invalid poDate');
+      }
+    }
+
     await sql`
       UPDATE products 
       SET name = ${data.name},
