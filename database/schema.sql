@@ -1,15 +1,14 @@
 -- Create orders table
 CREATE TABLE IF NOT EXISTS orders (
-    id SERIAL PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    product TEXT NOT NULL,
-    quantity INTEGER NOT NULL,
-    status TEXT NOT NULL,
-    total DECIMAL(10,2) NOT NULL,
-    notes TEXT NOT NULL,
-    date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  id SERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  product_id INTEGER NOT NULL REFERENCES products(id),
+  size TEXT NOT NULL,
+  quantity INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (product_id, size) REFERENCES size_quantities(productid, size)
 );
-
 -- Create products table
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
@@ -58,13 +57,15 @@ CREATE TABLE IF NOT EXISTS representatives (
 );
 
 -- Create users table
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'user',
-    created_by TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    parent_admin TEXT,
+    permissions JSONB DEFAULT '[]',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_admin) REFERENCES users(id)
 );
 
 -- Insert an initial admin user

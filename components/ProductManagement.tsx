@@ -52,7 +52,7 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
     fabric: '',
     vendor: '',
     sizeQuantities: {},
-    podate: '',  
+    podate: '',
     image: ''
   })
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
@@ -86,11 +86,18 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
 
   const handleCreateProduct = async () => {
     try {
+      // Transform sizeQuantities from object to array format
+      const available_sizes = Object.entries(newProduct.sizeQuantities)
+        .filter(([_, quantity]) => quantity > 0)
+        .map(([size, quantity]) => ({
+          size,
+          quantity: Number(quantity)
+        }));
+
+      // Log the data being sent
       console.log('Submitting product data:', {
         ...newProduct,
-        sizeQuantities: Object.fromEntries(
-          Object.entries(newProduct.sizeQuantities).filter(([_, quantity]) => quantity > 0)
-        )
+        available_sizes
       });
 
       const response = await fetch('/api/products', {
@@ -100,9 +107,7 @@ export function ProductManagement({ onUpdate }: { onUpdate: () => void }) {
         },
         body: JSON.stringify({
           ...newProduct,
-          sizeQuantities: Object.fromEntries(
-            Object.entries(newProduct.sizeQuantities).filter(([_, quantity]) => quantity > 0)
-          )
+          available_sizes // Send with the correct field name
         }),
       });
 

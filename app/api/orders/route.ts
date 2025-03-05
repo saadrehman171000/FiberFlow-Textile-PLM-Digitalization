@@ -21,36 +21,59 @@ const UpdateOrderSchema = z.object({
   total_amount: z.number().optional()
 });
 
-export async function POST(req: NextRequest) {
+// Validation schema
+const OrderSchema = z.object({
+  product: z.string().min(1),
+  quantity: z.number().positive(),
+  status: z.string().min(1),
+  total: z.number().positive(),
+  notes: z.string().min(1)
+});
+
+export async function POST(request: Request) {
   try {
     const { userId } = auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const dbUserId = userId.replace('user_', '');
 
-    const data = await req.json();
+    const body = await request.json();
     
-    const [order] = await sql`
+    // Validate request body
+    const validatedData = OrderSchema.parse(body);
+
+    const newOrder = await sql`
       INSERT INTO orders (
         user_id,
-        total,
+        product,
+        quantity,
         status,
-        createdat,
-        created_by
+        total,
+        notes,
+        date
       ) VALUES (
-        ${userId},
-        ${data.total},
-        ${data.status},
-        NOW(),
-        ${dbUserId}
+        ${userId.replace('user_', '')},
+        ${validatedData.product},
+        ${validatedData.quantity},
+        ${validatedData.status},
+        ${validatedData.total},
+        ${validatedData.notes},
+        CURRENT_TIMESTAMP
       )
       RETURNING *
     `;
 
-    return NextResponse.json(order);
+    return NextResponse.json(newOrder[0]);
   } catch (error) {
     console.error('Failed to create order:', error);
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to create order' },
       { status: 500 }

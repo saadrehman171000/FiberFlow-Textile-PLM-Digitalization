@@ -1,11 +1,15 @@
+'use client'
+
 import { UserDashboard } from "@/components/UserDashboard";
-import { auth } from "@clerk/nextjs/server";
+import { useUser } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 
-export default async function UserDashboardPage() {
-  const { userId } = auth();
+export default function UserDashboardPage() {
+  const { user, isLoaded } = useUser();
 
-  if (!userId) {
+  if (!isLoaded) return null;
+
+  if (!user) {
     redirect('/sign-in');
   }
 
