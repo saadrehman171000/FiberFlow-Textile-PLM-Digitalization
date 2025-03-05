@@ -1,15 +1,15 @@
-import db from "@/lib/db";
+import sql from "@/lib/db";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(params.id);
-    if (!customer) {
+    const rows = await sql`SELECT * FROM customers WHERE id = ${params.id}`;
+    if (!rows[0]) {
       console.log(`Customer with ID ${params.id} not found.`);
       return new NextResponse("Customer not found", { status: 404 });
     }
-    console.log(`Fetched customer with ID ${params.id}:`, customer);
-    return NextResponse.json(customer);
+    console.log(`Fetched customer with ID ${params.id}:`, rows[0]);
+    return NextResponse.json(rows[0]);
   } catch (error) {
     console.error('Error fetching customer:', error);
     return new NextResponse("Internal Server Error", { status: 500 });
@@ -19,10 +19,14 @@ export async function GET(request: Request, { params }: { params: { id: string }
 export async function PUT(request: Request, { params }: { params: { id: string } }) {
   try {
     const { name, email, industry } = await request.json();
-    const stmt = db.prepare('UPDATE customers SET name = ?, email = ?, industry = ? WHERE id = ?');
-    const result = stmt.run(name, email, industry, params.id);
+    const rows = await sql`
+      UPDATE customers 
+      SET name = ${name}, email = ${email}, industry = ${industry} 
+      WHERE id = ${params.id} 
+      RETURNING *
+    `;
     
-    if (result.changes === 0) {
+    if (rows.length === 0) {
       console.log(`No customer found with ID ${params.id} to update.`);
       return new NextResponse("Customer not found", { status: 404 });
     }
@@ -36,10 +40,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   try {
-    const stmt = db.prepare('DELETE FROM customers WHERE id = ?');
-    const result = stmt.run(params.id);
+    const rows = await sql`DELETE FROM customers WHERE id = ${params.id} RETURNING *`;
     
-    if (result.changes === 0) {
+    if (rows.length === 0) {
       console.log(`No customer found with ID ${params.id} to delete.`);
       return new NextResponse("Customer not found", { status: 404 });
     }
