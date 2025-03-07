@@ -25,6 +25,7 @@ export async function GET() {
           (
             SELECT COALESCE(SUM(CAST((value->>'quantity') AS INTEGER)), 0)
             FROM jsonb_array_elements(p.available_sizes) AS value
+            WHERE CAST((value->>'quantity') AS INTEGER) > 0
           ) AS INTEGER
         ) as total_quantity
       FROM products p
@@ -33,9 +34,14 @@ export async function GET() {
     `;
 
     const transformedProducts = products.map(product => ({
-      ...product,
+      id: product.id,
+      name: product.name,
+      style: product.style,
+      fabric: product.fabric,
+      vendor: product.vendor,
+      podate: product.podate,
+      image: product.image,
       total_quantity: parseInt(product.total_quantity) || 0,
-      created_by: product.created_by.replace('user_', ''),
       sizeQuantities: product.available_sizes.reduce((acc: any, curr: any) => {
         acc[curr.size] = parseInt(curr.quantity);
         return acc;

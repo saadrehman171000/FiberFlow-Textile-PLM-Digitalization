@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -11,30 +11,33 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 
 interface Product {
-  id: number;
-  name: string;
-  style: string;
-  fabric: string;
-  vendor: string;
-  podate: string;
-  image?: string;
+  id: number
+  name: string
+  style: string
+  fabric: string
+  vendor: string
+  podate: string
+  image?: string
   available_sizes: Array<{
-    size: string;
-    quantity: number;
-  }>;
-  total_quantity: number;
+    size: string
+    quantity: number
+  }>
+  total_quantity: number
 }
 
 interface Order {
-  Product: string;
-  Size: string;
-  Quantity: number;
-  Status: string;
-  "Order Date": string;
+  id: number
+  customer: string
+  product: string
+  size: string
+  quantity: number
+  date: string
+  status: string
 }
 
 export function UserDashboard() {
   const [loading, setLoading] = useState(true)
+  const [ordersLoading, setOrdersLoading] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
@@ -46,24 +49,18 @@ export function UserDashboard() {
 
   const fetchData = async () => {
     try {
-      const [productsRes, ordersRes] = await Promise.all([
-        fetch('/api/user-dashboard'),
-        fetch('/api/user/orders')
-      ])
-      
-      if (!productsRes.ok || !ordersRes.ok) throw new Error('Failed to fetch data')
-      
+      const productsRes = await fetch("/api/user-dashboard")
+
+      if (!productsRes.ok) throw new Error("Failed to fetch products")
+
       const productsData = await productsRes.json()
-      const ordersData = await ordersRes.json()
-      
       setProducts(productsData)
-      setOrders(ordersData)
     } catch (error) {
-      console.error('Error:', error)
+      console.error("Error fetching products:", error)
       toast({
         title: "Error",
-        description: "Failed to fetch data",
-        variant: "destructive"
+        description: "Failed to fetch products",
+        variant: "destructive",
       })
     } finally {
       setLoading(false)
@@ -72,17 +69,20 @@ export function UserDashboard() {
 
   const fetchOrders = async () => {
     try {
-      const response = await fetch('/api/user/orders')
-      if (!response.ok) throw new Error('Failed to fetch orders')
+      setOrdersLoading(true)
+      const response = await fetch("/api/user/orders")
+      if (!response.ok) throw new Error("Failed to fetch orders")
       const data = await response.json()
       setOrders(data)
     } catch (error) {
-      console.error('Error:', error)
+      console.error("Error fetching orders:", error)
       toast({
         title: "Error",
         description: "Failed to fetch orders",
-        variant: "destructive"
+        variant: "destructive",
       })
+    } finally {
+      setOrdersLoading(false)
     }
   }
 
@@ -97,100 +97,120 @@ export function UserDashboard() {
   }, [showOrders])
 
   const handleOrder = async () => {
+    if (!selectedProduct || !selectedSize || orderQuantity < 1) {
+      toast({
+        title: "Error",
+        description: "Please select a size and quantity",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
-      const response = await fetch('/api/user/orders', {
-        method: 'POST',
+      const response = await fetch("/api/user/orders", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          productId: selectedProduct?.id,
+          productId: selectedProduct.id,
           size: selectedSize,
-          quantity: orderQuantity
+          quantity: orderQuantity,
         }),
       })
 
-      if (!response.ok) throw new Error('Failed to place order')
+      if (!response.ok) throw new Error("Failed to place order")
 
       toast({
         title: "Success",
         description: "Order placed successfully",
       })
       setShowOrderDialog(false)
-      fetchData() // Refresh data
+      // Reset selection
+      setSelectedSize("")
+      setOrderQuantity(1)
+
+      // If we're already showing orders, refresh them
+      if (showOrders) {
+        fetchOrders()
+      }
     } catch (error) {
+      console.error("Error placing order:", error)
       toast({
         title: "Error",
         description: "Failed to place order",
-        variant: "destructive"
+        variant: "destructive",
       })
     }
   }
 
-  if (loading) return <div>Loading...</div>
+  if (loading && !showOrders) return <div className="p-6">Loading products...</div>
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">
-          {showOrders ? 'My Orders' : 'Available Products'}
-        </h2>
-        <Button onClick={() => setShowOrders(!showOrders)}>
-          {showOrders ? 'View Products' : 'View My Orders'}
-        </Button>
+        <h2 className="text-2xl font-bold">{showOrders ? "My Orders" : "Available Products"}</h2>
+        <Button onClick={() => setShowOrders(!showOrders)}>{showOrders ? "View Products" : "View My Orders"}</Button>
       </div>
 
       {showOrders ? (
-        <Card>
-          <CardContent>
-            {loading ? (
-              <div>Loading orders...</div>
+        <Card className="w-full">
+          <CardContent className="pt-6">
+            {ordersLoading ? (
+              <div className="py-4 text-center">Loading orders...</div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Order Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.length === 0 ? (
+              <div className="w-full overflow-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-4">
-                        No orders found
-                      </TableCell>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Order Date</TableHead>
                     </TableRow>
-                  ) : (
-                    orders.map((order, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{order.Product}</TableCell>
-                        <TableCell>{order.Size}</TableCell>
-                        <TableCell>{order.Quantity}</TableCell>
-                        <TableCell>
-                          <Badge variant={
-                            order.Status === 'completed' ? 'default' :
-                            order.Status === 'processing' ? 'secondary' :
-                            order.Status === 'cancelled' ? 'destructive' :
-                            'outline'
-                          }>
-                            {order.Status}
-                          </Badge>
+                  </TableHeader>
+                  <TableBody>
+                    {orders.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4">
+                          No orders found
                         </TableCell>
-                        <TableCell>{order["Order Date"]}</TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      orders.map((order, index) => (
+                        <TableRow key={order.id || index}>
+                          <TableCell>{order.product}</TableCell>
+                          <TableCell>{order.size}</TableCell>
+                          <TableCell>{order.quantity}</TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                order.status === "completed"
+                                  ? "default"
+                                  : order.status === "processing"
+                                    ? "secondary"
+                                    : order.status === "cancelled"
+                                      ? "destructive"
+                                      : "outline"
+                              }
+                            >
+                              {order.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{order.date}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
       ) : (
         <Card>
-          <CardContent>
+          <CardContent className="pt-6">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -210,15 +230,15 @@ export function UserDashboard() {
                     <TableCell>{product.fabric}</TableCell>
                     <TableCell>{product.vendor}</TableCell>
                     <TableCell>
-                      {product.available_sizes?.map(sq => 
-                        `${sq.size}(${sq.quantity})`
-                      ).join(', ')}
+                      {product.available_sizes?.map((sq) => `${sq.size}(${sq.quantity})`).join(", ")}
                     </TableCell>
                     <TableCell>
-                      <Button onClick={() => {
-                        setSelectedProduct(product)
-                        setShowOrderDialog(true)
-                      }}>
+                      <Button
+                        onClick={() => {
+                          setSelectedProduct(product)
+                          setShowOrderDialog(true)
+                        }}
+                      >
                         Order
                       </Button>
                     </TableCell>
@@ -237,13 +257,13 @@ export function UserDashboard() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Select onValueChange={setSelectedSize}>
-                <SelectTrigger>
+              <Select onValueChange={setSelectedSize} value={selectedSize}>
+                <SelectTrigger className="col-span-2">
                   <SelectValue placeholder="Select size" />
                 </SelectTrigger>
                 <SelectContent>
                   {selectedProduct?.available_sizes.map(({ size, quantity }) => (
-                    <SelectItem key={size} value={size}>
+                    <SelectItem key={size} value={size} disabled={quantity <= 0}>
                       {size} ({quantity} available)
                     </SelectItem>
                   ))}
@@ -259,10 +279,13 @@ export function UserDashboard() {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleOrder}>Place Order</Button>
+            <Button onClick={handleOrder} disabled={!selectedSize || orderQuantity < 1}>
+              Place Order
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   )
-} 
+}
+
