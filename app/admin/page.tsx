@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProductManagement } from "@/components/ProductManagement"
 import { CompanyManagement } from "@/components/CompanyManagement"
-import { Package, Users, Building2, BarChart2, UserPlus, UserCircle, Sun, Moon, ShoppingCart } from "lucide-react"
+import { Package, Users, Building2, BarChart2, UserPlus, UserCircle, Sun, Moon, ShoppingCart, MapPin } from "lucide-react"
 import { UserManagement } from "@/components/UserManagement"
 import { useAuth } from "@clerk/nextjs"
 import { UserButton } from "@clerk/nextjs"
@@ -26,6 +26,15 @@ interface Order {
   status: string;
 }
 
+interface UserLocation {
+  name: string;
+  email: string;
+  country: string;
+  city: string;
+  ip_address: string;
+  last_accessed: string;
+}
+
 export default function AdminDashboard() {
   const { userId } = useAuth()
   const { toast } = useToast()
@@ -37,6 +46,7 @@ export default function AdminDashboard() {
   const [adminInfo, setAdminInfo] = useState(null)
   const [orders, setOrders] = useState<Order[]>([])
   const [isLoadingOrders, setIsLoadingOrders] = useState(true)
+  const [userLocations, setUserLocations] = useState<UserLocation[]>([])
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") || "dark"
@@ -95,7 +105,30 @@ export default function AdminDashboard() {
     if (userId) {
       fetchOrders()
     }
-  }, [userId, toast]) //Fixed: Added toast to dependencies
+  }, [userId, toast])
+
+  useEffect(() => {
+    const fetchUserLocations = async () => {
+      try {
+        const response = await fetch('/api/admin/user-locations')
+        if (!response.ok) throw new Error('Failed to fetch user locations')
+        const data = await response.json()
+        console.log('Fetched location data:', data)
+        setUserLocations(data)
+      } catch (error) {
+        console.error('Error fetching user locations:', error)
+        toast({
+          title: "Error",
+          description: "Failed to fetch user location data",
+          variant: "destructive",
+        })
+      }
+    }
+
+    if (userId) {
+      fetchUserLocations()
+    }
+  }, [userId, toast])
 
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light"
@@ -198,7 +231,7 @@ export default function AdminDashboard() {
       <main className={`pt-20 px-4 ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
         <div className="max-w-7xl mx-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid grid-cols-6 w-full gap-4 bg-transparent mb-4">
+            <TabsList className="grid grid-cols-7 w-full gap-4 bg-transparent mb-4">
               <TabsTrigger value="dashboard" className="flex-1">
                 <BarChart2 className="mr-2 h-4 w-4" />
                 Dashboard
@@ -222,6 +255,10 @@ export default function AdminDashboard() {
               <TabsTrigger value="admins" className="flex-1">
                 <Users className="mr-2 h-4 w-4" />
                 Admins
+              </TabsTrigger>
+              <TabsTrigger value="locations" className="flex-1">
+                <MapPin className="mr-2 h-4 w-4" />
+                Locations
               </TabsTrigger>
             </TabsList>
 
@@ -381,6 +418,47 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <AdminManagement />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="locations">
+              <Card className={`p-4 rounded-lg ${theme === "dark" ? "bg-[#0F172A] border-[#1E293B]" : "bg-white border-gray-200"} border`}>
+                <CardHeader className="pb-2">
+                  <CardTitle>User Locations</CardTitle>
+                  <CardDescription>View geographical distribution of users</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Country</TableHead>
+                          <TableHead>City</TableHead>
+                          <TableHead>IP Address</TableHead>
+                          <TableHead>Last Accessed</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {userLocations.map((location) => (
+                          <TableRow key={location.email}>
+                            <TableCell>{location.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {location.country}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{location.city}</TableCell>
+                            <TableCell>
+                              <code className="text-sm">{location.ip_address}</code>
+                            </TableCell>
+                            <TableCell>{location.last_accessed}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
