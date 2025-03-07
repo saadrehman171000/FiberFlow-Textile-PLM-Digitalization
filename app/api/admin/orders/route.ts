@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
 import { auth, clerkClient } from '@clerk/nextjs/server';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const { userId } = auth();
