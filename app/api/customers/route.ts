@@ -1,7 +1,6 @@
-import db from "@/lib/db";
+import sql from "@/lib/db";
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import sql from '@/lib/db';
 
 const CustomerSchema = z.object({
   name: z.string().min(1),
@@ -30,6 +29,7 @@ export async function POST(request: Request) {
       VALUES (${validatedData.name}, ${validatedData.email}, ${validatedData.industry})
       RETURNING id
     `;
+
     console.log(`New customer added with ID ${result[0].id}.`);
     return NextResponse.json({ id: result[0].id });
   } catch (error) {

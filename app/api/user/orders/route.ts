@@ -10,7 +10,24 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const dbUserId = userId.replace('user_', '');
+    // Get user info from Clerk first
+    const clerkUser = await clerkClient.users.getUser(userId);
+    const email = clerkUser.emailAddresses[0]?.emailAddress;
+
+    if (!email) {
+      return NextResponse.json({ error: 'User email not found' }, { status: 400 });
+    }
+
+    // Get user's database ID using email
+    const user = await sql`
+      SELECT id FROM users WHERE email = ${email}
+    `;
+
+    if (user.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const dbUserId = user[0].id;
     
     const orders = await sql`
       SELECT 
@@ -26,13 +43,17 @@ export async function GET() {
       ORDER BY o.created_at DESC
     `;
 
-    // Format the response to match exactly what the frontend expects
+    // Format the response to match the frontend table structure
     const formattedOrders = orders.map(order => ({
-      Product: order.product || 'Unknown Product',
-      Size: order.size,
-      Quantity: order.quantity,
-      Status: order.status,
-      "Order Date": order.date
+      id: order.id,
+      customer: clerkUser.firstName && clerkUser.lastName 
+        ? `${clerkUser.firstName} ${clerkUser.lastName}`.trim()
+        : 'Anonymous',
+      product: order.product || 'Unknown Product',
+      size: order.size,
+      quantity: order.quantity,
+      date: order.date,
+      status: order.status
     }));
 
     console.log('Formatted orders:', formattedOrders);
@@ -43,100 +64,89 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
     const { userId } = auth();
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { productId, size, quantity } = await request.json();
-    const dbUserId = userId.replace('user_', '');
-
-    // Get user data from Clerk
-    const user = await clerkClient.users.getUser(userId);
+    const data = await req.json();
+    const { productId, size, quantity } = data;
     
-    // Ensure user exists in our database
-    await sql`
-      INSERT INTO users (id, name, email)
-      VALUES (
-        ${dbUserId}, 
-        ${user.firstName + ' ' + user.lastName}, 
-        ${user.emailAddresses[0].emailAddress}
-      )
-      ON CONFLICT (id) DO UPDATE 
-      SET name = EXCLUDED.name, 
-          email = EXCLUDED.email
+    // First check if product has enough quantity
+    const [product] = await sql`
+      SELECT available_sizes FROM products WHERE id = ${productId}
     `;
 
-    // Check available quantity
-    const [product] = await sql`
-      SELECT available_sizes
-      FROM products
+    if (!product) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    // Find the size and check quantity
+    const sizeInfo = product.available_sizes.find((s: any) => s.size === size);
+    if (!sizeInfo) {
+      return NextResponse.json({ error: 'Size not available' }, { status: 400 });
+    }
+
+    const availableQuantity = parseInt(sizeInfo.quantity);
+    if (availableQuantity < quantity) {
+      return NextResponse.json({ 
+        error: 'Not enough quantity available' 
+      }, { status: 400 });
+    }
+
+    // Get or create user
+    const clerkUser = await clerkClient.users.getUser(userId);
+    const email = clerkUser.emailAddresses[0]?.emailAddress;
+    if (!email) {
+      return NextResponse.json({ error: 'User email not found' }, { status: 400 });
+    }
+
+    let dbUserId;
+    const existingUser = await sql`
+      SELECT id FROM users WHERE email = ${email}
+    `;
+
+    if (existingUser.length === 0) {
+      const name = clerkUser.firstName && clerkUser.lastName 
+        ? `${clerkUser.firstName} ${clerkUser.lastName}`.trim()
+        : email.split('@')[0];
+      
+      const newUser = await sql`
+        INSERT INTO users (user_id, email, name, role)
+        VALUES (${userId}, ${email}, ${name}, 'user')
+        RETURNING id
+      `;
+      dbUserId = newUser[0].id;
+    } else {
+      dbUserId = existingUser[0].id;
+    }
+
+    // Update product quantity
+    const updatedSizes = product.available_sizes.map((s: any) => ({
+      size: s.size,
+      quantity: s.size === size ? (parseInt(s.quantity) - quantity) : parseInt(s.quantity)
+    }));
+
+    await sql`
+      UPDATE products 
+      SET available_sizes = ${JSON.stringify(updatedSizes)}
       WHERE id = ${productId}
     `;
 
-    const sizeInfo = product.available_sizes.find((s: any) => s.size === size);
-    if (!sizeInfo || sizeInfo.quantity < quantity) {
-      return NextResponse.json(
-        { error: 'Insufficient quantity available' },
-        { status: 400 }
-      );
-    }
+    // Create the order
+    const [order] = await sql`
+      INSERT INTO orders (user_id, product_id, order_size, order_quantity, status)
+      VALUES (${dbUserId}, ${productId}, ${size}, ${quantity}, 'pending')
+      RETURNING *
+    `;
 
-    await sql`BEGIN`;
-    try {
-      // Update product quantity
-      await sql`
-        UPDATE products
-        SET available_sizes = (
-          SELECT jsonb_agg(
-            CASE
-              WHEN elem->>'size' = ${size}
-              THEN jsonb_build_object(
-                'size', elem->>'size',
-                'quantity', CAST((elem->>'quantity')::int - ${quantity} AS text)
-              )
-              ELSE elem
-            END
-          )
-          FROM jsonb_array_elements(available_sizes) elem
-        )
-        WHERE id = ${productId}
-      `;
-
-      // Create order with current timestamp
-      const [newOrder] = await sql`
-        INSERT INTO orders (
-          user_id,
-          product_id,
-          order_size,
-          order_quantity,
-          status,
-          created_at
-        )
-        VALUES (
-          ${dbUserId},
-          ${productId},
-          ${size},
-          ${quantity},
-          'pending',
-          CURRENT_TIMESTAMP
-        )
-        RETURNING *
-      `;
-
-      await sql`COMMIT`;
-      return NextResponse.json(newOrder);
-    } catch (error) {
-      await sql`ROLLBACK`;
-      throw error;
-    }
+    return NextResponse.json(order);
   } catch (error) {
     console.error('Failed to create order:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to create order', details: message },
+      { error: 'Failed to create order', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
