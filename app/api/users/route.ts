@@ -18,12 +18,12 @@ export async function POST(request: Request) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const { email, name, role } = await request.json();
+  const { email, name, role, industry } = await request.json();
 
-  // Add new user
+  // Add new user with industry
   await sql`
-    INSERT INTO user_roles (user_id, email, name, role, created_by)
-    VALUES (${email}, ${email}, ${name}, ${role}, ${dbUserId})
+    INSERT INTO user_roles (user_id, email, name, role, industry, created_by)
+    VALUES (${email}, ${email}, ${name}, 'user', ${industry}, ${dbUserId})
   `;
 
   // Update Clerk metadata

@@ -48,15 +48,17 @@ export function UserManagement({ onUpdate }: { onUpdate: () => void }) {
   const handleAddUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
+    const userData = {
+      email: formData.get('email'),
+      name: formData.get('name'),
+      industry: formData.get('industry'),
+      role: 'user' // explicitly set role
+    }
     
     try {
       const response = await fetch('/api/admin/users', {
         method: 'POST',
-        body: JSON.stringify({
-          email: formData.get('email'),
-          name: formData.get('name'),
-          industry: formData.get('industry')
-        }),
+        body: JSON.stringify(userData),
         headers: {
           'Content-Type': 'application/json'
         }
