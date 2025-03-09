@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   if (!userId) return new Response('Unauthorized', { status: 401 });
   
   try {
-    const { email, name } = await request.json();
+    const { email, name, industry } = await request.json();
 
     // Create new user in Clerk
     const newClerkUser = await clerkClient.users.createUser({
@@ -30,13 +30,14 @@ export async function POST(request: Request) {
       password: Math.random().toString(36).slice(-8),
     });
 
-    // Add user to database with reference to creating admin
+    // Add user to database with reference to creating admin and industry
     await sql`
       INSERT INTO user_roles (
         user_id,
         email,
         name,
         role,
+        industry,
         created_by
       )
       VALUES (
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
         ${email},
         ${name},
         'user',
+        ${industry},
         ${userId.replace('user_', '')}
       )
     `;
