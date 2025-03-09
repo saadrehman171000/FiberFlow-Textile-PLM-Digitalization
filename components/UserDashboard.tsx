@@ -284,9 +284,9 @@ export function UserDashboard() {
                         setSelectedProduct(product)
                         setShowOrderDialog(true)
                       }}
-                      disabled={product.total_quantity === 0}
+                      disabled={!product.available_sizes.some(size => size.quantity > 0)}
                     >
-                      {product.total_quantity > 0 ? "Place Order" : "Out of Stock"}
+                      {product.available_sizes.some(size => size.quantity > 0) ? "Place Order" : "Out of Stock"}
                     </Button>
                   </CardFooter>
                 </Card>

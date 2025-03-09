@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { useRouter } from "next/navigation"
 
 interface Order {
   id: number;
@@ -37,6 +38,7 @@ interface UserLocation {
 
 export default function AdminDashboard() {
   const { userId } = useAuth()
+  const router = useRouter()
   const { toast } = useToast()
   const [theme, setTheme] = useState("dark")
   const [scrollY, setScrollY] = useState(0)
@@ -47,6 +49,8 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([])
   const [isLoadingOrders, setIsLoadingOrders] = useState(true)
   const [userLocations, setUserLocations] = useState<UserLocation[]>([])
+  const [isAuthorized, setIsAuthorized] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme") || "dark"
@@ -130,6 +134,27 @@ export default function AdminDashboard() {
     }
   }, [userId, toast])
 
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      try {
+        const response = await fetch('/api/check-admin')
+        if (!response.ok) {
+          throw new Error('Not authorized')
+        }
+        setIsAuthorized(true)
+      } catch (error) {
+        console.error('Not an admin user')
+        router.push('/')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (userId) {
+      checkAdminStatus()
+    }
+  }, [userId, router])
+
   const toggleTheme = () => {
     const newTheme = theme === "light" ? "dark" : "light"
     setTheme(newTheme)
@@ -166,6 +191,18 @@ export default function AdminDashboard() {
         variant: "destructive",
       })
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    )
+  }
+
+  if (!isAuthorized) {
+    return null
   }
 
   if (!dashboardData || !adminInfo) return <div>Loading...</div>
