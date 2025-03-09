@@ -5,7 +5,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProductManagement } from "@/components/ProductManagement"
 import { CompanyManagement } from "@/components/CompanyManagement"
-import { Package, Users, Building2, BarChart2, UserPlus, UserCircle, Sun, Moon, ShoppingCart, MapPin } from "lucide-react"
+import {
+  Package,
+  Users,
+  Building2,
+  BarChart2,
+  UserPlus,
+  UserCircle,
+  Sun,
+  Moon,
+  ShoppingCart,
+  MapPin,
+  ScanSearch,
+} from "lucide-react"
 import { UserManagement } from "@/components/UserManagement"
 import { useAuth } from "@clerk/nextjs"
 import { UserButton } from "@clerk/nextjs"
@@ -16,24 +28,25 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
+import { DefectDetection } from "@/components/DefectDetection"
 
 interface Order {
-  id: number;
-  customer: string;
-  product: string;
-  size: string;
-  quantity: number;
-  date: string;
-  status: string;
+  id: number
+  customer: string
+  product: string
+  size: string
+  quantity: number
+  date: string
+  status: string
 }
 
 interface UserLocation {
-  name: string;
-  email: string;
-  country: string;
-  city: string;
-  ip_address: string;
-  last_accessed: string;
+  name: string
+  email: string
+  country: string
+  city: string
+  ip_address: string
+  last_accessed: string
 }
 
 export default function AdminDashboard() {
@@ -114,13 +127,13 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchUserLocations = async () => {
       try {
-        const response = await fetch('/api/admin/user-locations')
-        if (!response.ok) throw new Error('Failed to fetch user locations')
+        const response = await fetch("/api/admin/user-locations")
+        if (!response.ok) throw new Error("Failed to fetch user locations")
         const data = await response.json()
-        console.log('Fetched location data:', data)
+        console.log("Fetched location data:", data)
         setUserLocations(data)
       } catch (error) {
-        console.error('Error fetching user locations:', error)
+        console.error("Error fetching user locations:", error)
         toast({
           title: "Error",
           description: "Failed to fetch user location data",
@@ -137,14 +150,14 @@ export default function AdminDashboard() {
   useEffect(() => {
     const checkAdminStatus = async () => {
       try {
-        const response = await fetch('/api/check-admin')
+        const response = await fetch("/api/check-admin")
         if (!response.ok) {
-          throw new Error('Not authorized')
+          throw new Error("Not authorized")
         }
         setIsAuthorized(true)
       } catch (error) {
-        console.error('Not an admin user')
-        router.push('/')
+        console.error("Not an admin user")
+        router.push("/")
       } finally {
         setIsLoading(false)
       }
@@ -268,7 +281,7 @@ export default function AdminDashboard() {
       <main className={`pt-20 px-4 ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
         <div className="max-w-7xl mx-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid grid-cols-7 w-full gap-4 bg-transparent mb-4">
+            <TabsList className="grid grid-cols-8 w-full gap-4 bg-transparent mb-4">
               <TabsTrigger value="dashboard" className="flex-1">
                 <BarChart2 className="mr-2 h-4 w-4" />
                 Dashboard
@@ -296,6 +309,10 @@ export default function AdminDashboard() {
               <TabsTrigger value="locations" className="flex-1">
                 <MapPin className="mr-2 h-4 w-4" />
                 Locations
+              </TabsTrigger>
+              <TabsTrigger value="defect-detection" className="flex-1">
+                <ScanSearch className="mr-2 h-4 w-4" />
+                Defect Detection
               </TabsTrigger>
             </TabsList>
 
@@ -460,7 +477,9 @@ export default function AdminDashboard() {
             </TabsContent>
 
             <TabsContent value="locations">
-              <Card className={`p-4 rounded-lg ${theme === "dark" ? "bg-[#0F172A] border-[#1E293B]" : "bg-white border-gray-200"} border`}>
+              <Card
+                className={`p-4 rounded-lg ${theme === "dark" ? "bg-[#0F172A] border-[#1E293B]" : "bg-white border-gray-200"} border`}
+              >
                 <CardHeader className="pb-2">
                   <CardTitle>User Locations</CardTitle>
                   <CardDescription>View geographical distribution of users</CardDescription>
@@ -482,9 +501,7 @@ export default function AdminDashboard() {
                           <TableRow key={location.email}>
                             <TableCell>{location.name}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">
-                                {location.country}
-                              </Badge>
+                              <Badge variant="outline">{location.country}</Badge>
                             </TableCell>
                             <TableCell>{location.city}</TableCell>
                             <TableCell>
@@ -496,6 +513,20 @@ export default function AdminDashboard() {
                       </TableBody>
                     </Table>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="defect-detection">
+              <Card
+                className={`p-4 rounded-lg ${theme === "dark" ? "bg-[#0F172A] border-[#1E293B]" : "bg-white border-gray-200"} border`}
+              >
+                <CardHeader className="pb-2">
+                  <CardTitle>Fabric Defect Detection</CardTitle>
+                  <CardDescription>Upload images to detect defects in fabric</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <DefectDetection />
                 </CardContent>
               </Card>
             </TabsContent>
